@@ -16,6 +16,8 @@
     --warning: #F59E0B;          /* Amber for Sin Revisar */
     --alert: #F97316;            /* Orange for Reproceso */
     --info: #06B6D4;             /* Cyan for general info */
+
+    --sidebar-width: 260px;
 }
 
 * {
@@ -44,15 +46,50 @@ p { font-size: 0.95rem; }
     min-height: 100vh;
 }
 
-/* Sidebar */
+/* ======================= */
+/*        SIDEBAR          */
+/* ======================= */
 .sidebar {
-    width: 260px;
+    width: var(--sidebar-width);
     background-color: var(--card-bg);
     border-right: 1px solid var(--border-color);
     padding: 1.5rem;
     position: fixed;
     height: 100vh;
     overflow-y: auto;
+    z-index: 100;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Collapsed sidebar state */
+.sidebar.collapsed {
+    transform: translateX(-100%);
+}
+
+.sidebar-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(2px);
+    z-index: 99;
+    transition: opacity 0.3s ease;
+}
+
+.sidebar-overlay.hidden {
+    display: none;
+    opacity: 0;
+}
+
+.sidebar-top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .logo {
@@ -61,9 +98,60 @@ p { font-size: 0.95rem; }
     gap: 0.8rem;
     color: var(--primary);
     font-size: 1.2rem;
-    margin-bottom: 2rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-close-btn {
+    background: none;
+    border: none;
+    font-size: 1.3rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.sidebar-close-btn:hover {
+    background-color: rgba(239, 68, 68, 0.1);
+    color: var(--danger);
+}
+
+/* Hamburger button in main header */
+.hamburger-btn {
+    background: none;
+    border: 1px solid var(--border-color);
+    font-size: 1.2rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    display: none; /* hidden by default when sidebar is open */
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.hamburger-btn:hover {
+    background-color: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+/* When sidebar is collapsed, show hamburger */
+.sidebar.collapsed ~ .main-content .hamburger-btn {
+    display: flex;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
 }
 
 .search-title, .filter-title {
@@ -135,11 +223,19 @@ p { font-size: 0.95rem; }
     box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.2);
 }
 
-/* Main Content */
+/* ======================= */
+/*      MAIN CONTENT       */
+/* ======================= */
 .main-content {
     flex: 1;
-    margin-left: 260px; /* offset sidebar */
+    margin-left: var(--sidebar-width);
     padding: 2rem;
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* When sidebar is collapsed, main content takes full width */
+.sidebar.collapsed ~ .main-content {
+    margin-left: 0;
 }
 
 header {
@@ -181,6 +277,41 @@ header {
 .btn-primary:hover {
     background-color: var(--primary-hover);
     box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.2);
+}
+
+/* Reproceso Filter Buttons */
+.reproceso-filters {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.btn-reproceso {
+    padding: 0.45rem 1rem;
+    border-radius: 20px;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 0.82rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: all 0.25s ease;
+    background-color: var(--card-bg);
+    color: var(--text-secondary);
+}
+
+.btn-reproceso:hover {
+    border-color: var(--alert);
+    color: var(--alert);
+    background-color: rgba(249, 115, 22, 0.05);
+}
+
+.btn-reproceso.active {
+    background-color: var(--alert);
+    color: white;
+    border-color: var(--alert);
+    box-shadow: 0 2px 8px rgba(249, 115, 22, 0.3);
 }
 
 /* KPI Cards */
@@ -261,6 +392,8 @@ header {
     margin-bottom: 1.5rem;
     padding-bottom: 0.8rem;
     border-bottom: 1px solid var(--border-color);
+    flex-wrap: wrap;
+    gap: 0.8rem;
 }
 
 .view-options {
@@ -269,10 +402,11 @@ header {
 }
 
 .badge {
-    padding: 0.4rem 0.8rem;
+    padding: 0.35rem 0.7rem;
     border-radius: 20px;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     font-weight: 600;
+    white-space: nowrap;
 }
 
 .badge-danger { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
@@ -281,74 +415,121 @@ header {
 .badge-info { background: rgba(6, 182, 212, 0.1); color: var(--info); }
 .badge-alert { background: rgba(249, 115, 22, 0.1); color: var(--alert); }
 
-/* Vehicles Grid */
-.vehicles-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 1.5rem;
-}
-
-.vehicle-card {
-    background-color: var(--card-bg);
-    border: 1px solid var(--border-color);
+/* ======================= */
+/*     VEHICLES TABLE      */
+/* ======================= */
+.vehicles-table-wrapper {
+    overflow-x: auto;
     border-radius: 12px;
-    padding: 1.5rem;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    border: 1px solid var(--border-color);
+    background-color: var(--card-bg);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.vehicles-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.vehicles-table thead {
+    background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+    color: white;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.vehicles-table thead th {
+    padding: 0.9rem 1rem;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.vehicles-table tbody tr {
+    border-bottom: 1px solid var(--border-color);
     cursor: pointer;
-    transition: all 0.2s ease;
-    border-top: 4px solid var(--border-color); /* Default top border */
+    transition: background-color 0.15s ease;
 }
 
-.vehicle-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 12px 20px -8px rgba(0,0,0,0.1);
+.vehicles-table tbody tr:hover {
+    background-color: rgba(59, 130, 246, 0.04);
 }
 
-/* Status specific top borders on cards */
-.vehicle-card[data-status="RECHAZADO"] { border-top-color: var(--danger); }
-.vehicle-card[data-status="ACEPTADO"] { border-top-color: var(--success); }
-.vehicle-card[data-status="ENTREGADO, NO REVISADO"] { border-top-color: var(--warning); }
-.vehicle-card[data-status="EN REPROCESO"] { border-top-color: var(--alert); }
-
-.card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 1rem;
+.vehicles-table tbody tr:last-child {
+    border-bottom: none;
 }
 
-.card-title {
-    font-size: 1.1rem;
+.vehicles-table td {
+    padding: 0.75rem 1rem;
+    color: var(--text-primary);
+    vertical-align: middle;
+}
+
+.vehicles-table .vin-cell {
     font-weight: 700;
     color: var(--primary);
-    margin-bottom: 0.2rem;
+    font-size: 0.88rem;
+    letter-spacing: 0.3px;
 }
 
-.card-subtitle {
-    font-size: 0.85rem;
-    color: var(--text-secondary);
+.vehicles-table .model-cell {
+    font-weight: 500;
+    color: var(--text-primary);
+    max-width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.card-body p {
-    font-size: 0.9rem;
-    margin-bottom: 0.5rem;
-    display: flex;
-    justify-content: space-between;
-}
-
-.card-body p span.label {
+.vehicles-table .dest-cell {
     color: var(--text-secondary);
     font-weight: 500;
 }
 
-.card-body p span.value {
-    color: var(--text-primary);
-    font-weight: 600;
-    text-align: right;
-    max-width: 60%;
+.vehicles-table .detail-cell {
+    max-width: 220px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+/* Status indicator colored left border on rows */
+.vehicles-table tbody tr.row-rechazado {
+    border-left: 4px solid var(--danger);
+}
+.vehicles-table tbody tr.row-aceptado {
+    border-left: 4px solid var(--success);
+}
+.vehicles-table tbody tr.row-reproceso {
+    border-left: 4px solid var(--alert);
+}
+.vehicles-table tbody tr.row-pendiente {
+    border-left: 4px solid var(--warning);
+}
+.vehicles-table tbody tr.row-sinestado {
+    border-left: 4px solid var(--border-color);
+}
+
+/* Table row count footer */
+.table-footer {
+    padding: 0.8rem 1rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.table-footer i {
+    color: var(--primary);
 }
 
 /* Modal Styles */
@@ -515,3 +696,33 @@ header {
 }
 
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+/* ======================= */
+/*     RESPONSIVE          */
+/* ======================= */
+@media (max-width: 768px) {
+    .sidebar {
+        transform: translateX(-100%);
+    }
+    .sidebar.open {
+        transform: translateX(0);
+    }
+    .main-content {
+        margin-left: 0 !important;
+    }
+    .hamburger-btn {
+        display: flex !important;
+    }
+    header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+    }
+    .kpi-section {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .data-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

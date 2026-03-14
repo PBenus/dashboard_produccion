@@ -14,11 +14,19 @@
 
 <body>
     <div class="dashboard-container">
+        <!-- Sidebar Overlay (mobile) -->
+        <div class="sidebar-overlay hidden" id="sidebarOverlay"></div>
+
         <!-- Sidebar -->
-        <aside class="sidebar">
-            <div class="logo">
-                <i class="fa-solid fa-car-side"></i>
-                <h2>Produccion Diaria</h2>
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-top-row">
+                <div class="logo">
+                    <i class="fa-solid fa-car-side"></i>
+                    <h2>Produccion Diaria</h2>
+                </div>
+                <button class="sidebar-close-btn" id="sidebarCloseBtn" title="Cerrar menú">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
             </div>
 
             <div class="search-container">
@@ -44,11 +52,16 @@
         </aside>
 
         <!-- Main Content -->
-        <main class="main-content">
+        <main class="main-content" id="mainContent">
             <header>
-                <div>
-                    <h1>Monitoreo de Producción</h1>
-                    <p class="subtitle">Estado actual de vehículos y reprocesos</p>
+                <div class="header-left">
+                    <button class="hamburger-btn" id="hamburgerBtn" title="Abrir menú">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
+                    <div>
+                        <h1>Monitoreo de Producción</h1>
+                        <p class="subtitle">Estado actual de vehículos y reprocesos</p>
+                    </div>
                 </div>
                 <div class="header-actions">
                     <p id="lastUpdate" class="last-update"><i class="fa-regular fa-clock"></i> Cargando...</p>
@@ -107,6 +120,18 @@
             <section class="data-section">
                 <div class="data-header">
                     <h2 id="currentViewTitle">Mostrando: Todos los Destinos</h2>
+                    <!-- Reproceso Sub-filter Buttons (visible when RECHAZADO or EN REPROCESO is active) -->
+                    <div class="reproceso-filters hidden" id="reprocesoFilters">
+                        <button class="btn btn-reproceso active" data-reproceso="all">
+                            <i class="fa-solid fa-list"></i> Todos
+                        </button>
+                        <button class="btn btn-reproceso" data-reproceso="REPUESTO">
+                            <i class="fa-solid fa-gear"></i> Reproceso Repuesto
+                        </button>
+                        <button class="btn btn-reproceso" data-reproceso="PINTURA">
+                            <i class="fa-solid fa-paint-roller"></i> Reproceso Pintura
+                        </button>
+                    </div>
                 </div>
 
                 <div id="loadingIndicator" class="loading-state">
@@ -114,9 +139,9 @@
                     <p>Procesando datos del sistema...</p>
                 </div>
 
-                <!-- Container where vehicle cards will be injected -->
-                <div id="vehiclesContainer" class="vehicles-grid hidden">
-                    <!-- Cards injected by JS -->
+                <!-- Container where vehicle TABLE will be injected -->
+                <div id="vehiclesContainer" class="vehicles-table-wrapper hidden">
+                    <!-- Table injected by JS -->
                 </div>
 
                 <div id="noResultsMsg" class="no-results hidden">

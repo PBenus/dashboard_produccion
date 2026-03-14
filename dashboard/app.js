@@ -3,6 +3,7 @@ const CSV_URL = '/api/data';
 let allVehicles = [];
 let currentFilter = 'all';
 let currentStatusFilter = 'all';
+let currentReprocesoFilter = 'all'; // 'all', 'REPUESTO', or 'PINTURA'
 
 // DOM Elements
 const els = {
@@ -10,6 +11,15 @@ const els = {
     refreshBtn: document.getElementById('refreshBtn'),
     searchInput: document.getElementById('searchInput'),
     destinationFilters: document.getElementById('destinationFilters'),
+    
+    // Sidebar controls
+    sidebar: document.getElementById('sidebar'),
+    hamburgerBtn: document.getElementById('hamburgerBtn'),
+    sidebarCloseBtn: document.getElementById('sidebarCloseBtn'),
+    sidebarOverlay: document.getElementById('sidebarOverlay'),
+    
+    // Reproceso Filters
+    reprocesoFilters: document.getElementById('reprocesoFilters'),
     
     // Containers
     loadingIndicator: document.getElementById('loadingIndicator'),
@@ -46,11 +56,18 @@ document.addEventListener('DOMContentLoaded', init);
 function init() {
     loadData();
     setupEventListeners();
+    // Start with sidebar collapsed
+    els.sidebar.classList.add('collapsed');
 }
 
 function setupEventListeners() {
     // Refresh button
     els.refreshBtn.addEventListener('click', loadData);
+    
+    // === Sidebar Toggle ===
+    els.hamburgerBtn.addEventListener('click', openSidebar);
+    els.sidebarCloseBtn.addEventListener('click', closeSidebar);
+    els.sidebarOverlay.addEventListener('click', closeSidebar);
     
     // Search input
     els.searchInput.addEventListener('input', (e) => {
@@ -74,7 +91,12 @@ function setupEventListeners() {
             // Clear search when switching tabs for better UX
             els.searchInput.value = '';
             
-            renderVehicles(currentFilter, ''); // render logic handles status filters naturally
+            renderVehicles(currentFilter, '');
+            
+            // Close sidebar on mobile after selecting
+            if (window.innerWidth <= 768) {
+                closeSidebar();
+            }
         }
     });
 
@@ -88,10 +110,30 @@ function setupEventListeners() {
             // Apply status filter
             currentStatusFilter = card.getAttribute('data-filter');
             
+            // Reset reproceso filter
+            currentReprocesoFilter = 'all';
+            updateReprocesoButtons();
+            
+            // Show/hide reproceso sub-filters
+            if (currentStatusFilter === 'RECHAZADO' || currentStatusFilter === 'EN REPROCESO') {
+                els.reprocesoFilters.classList.remove('hidden');
+            } else {
+                els.reprocesoFilters.classList.add('hidden');
+            }
+            
             // Clear search when switching tabs for better UX
             els.searchInput.value = '';
             
             renderVehicles(currentFilter, '');
+        });
+    });
+    
+    // Reproceso Sub-filter Buttons
+    document.querySelectorAll('.btn-reproceso').forEach(btn => {
+        btn.addEventListener('click', () => {
+            currentReprocesoFilter = btn.getAttribute('data-reproceso');
+            updateReprocesoButtons();
+            renderVehicles(currentFilter, els.searchInput.value.trim().toLowerCase());
         });
     });
 
@@ -99,6 +141,23 @@ function setupEventListeners() {
     els.closeBtn.addEventListener('click', closeModal);
     window.addEventListener('click', (e) => {
         if (e.target === els.modal) closeModal();
+    });
+}
+
+// === Sidebar Functions ===
+function openSidebar() {
+    els.sidebar.classList.remove('collapsed');
+    els.sidebarOverlay.classList.remove('hidden');
+}
+
+function closeSidebar() {
+    els.sidebar.classList.add('collapsed');
+    els.sidebarOverlay.classList.add('hidden');
+}
+
+function updateReprocesoButtons() {
+    document.querySelectorAll('.btn-reproceso').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-reproceso') === currentReprocesoFilter);
     });
 }
 
@@ -171,19 +230,17 @@ function processVehicles(data) {
         }
         else {
             // PRIORIDAD 2: Pendientes de Revisión
-            // Si tiene una N-sima entrega (en cualquier zona) y NO fue ni aceptado ni rechazado
             if (tieneEntrega) {
                 status = 'PENDIENTE DE REVISIÓN';
             }
             else {
                 // PRIORIDAD 3: Reprocesos Puros
-                // Ya filtramos Todo Aceptado, Rechazado, y Entregas.
                 const estadoCC = getVal('Estado CC').toUpperCase();
                 
                 if (estadoCC === 'REPROCESO') {
                     status = 'EN REPROCESO';
                 } else {
-                    status = 'SIN ESTADO'; // Resto que no cumple nada
+                    status = 'SIN ESTADO';
                 }
             }
         }
@@ -199,10 +256,17 @@ function processVehicles(data) {
         else if (rawDest.includes('AASA') || rawDest.includes('ASSA')) groupDest = 'ZONA AASA';
 
         // Get explicit Rejection Observation (Col W or Z)
-        // Note: Headers derived from the CSV structure
         const obsRevoFinal = getVal('OBSERVACION - REVO Y ESSA');
         const obsEmsaFinal = getVal('OBSERVACION - EMSA Y ASSA');
         const rejectionReason = obsRevoFinal ? obsRevoFinal : obsEmsaFinal;
+        
+        // Reproceso details for sub-filtering
+        const rpPintura = getVal('REPROCESO PINTURA');
+        const rpRepuestos = getVal('REPROCESO REPUESTOS');
+        
+        // Determine reproceso type flags
+        const tieneRepuestoPendiente = rpRepuestos !== '' && rpRepuestos.toUpperCase() !== 'OK' && rpRepuestos !== '-';
+        const tienePinturaPendiente = rpPintura !== '' && rpPintura.toUpperCase() !== 'OK' && rpPintura !== '-';
 
         return {
             raw: row, // Keep raw row for modal
@@ -216,7 +280,11 @@ function processVehicles(data) {
             estadoCC: getVal('Estado CC'),
             reprocesoFalta: getVal('QUE REPROCESO FALTA'),
             taller: getVal('TALLER'),
-            rejectionReason: rejectionReason
+            rejectionReason: rejectionReason,
+            rpPintura: rpPintura,
+            rpRepuestos: rpRepuestos,
+            tieneRepuestoPendiente: tieneRepuestoPendiente,
+            tienePinturaPendiente: tienePinturaPendiente
         };
     }).filter(v => v.vin); // Only keep valid rows with VIN
 
@@ -247,9 +315,7 @@ function updateKPIs(vehicles) {
 function renderVehicles(destFilter, searchTerm) {
     els.vehiclesContainer.innerHTML = '';
     
-    // Sort logic (Prioritize rules defined by user)
-    // Dest Order: DESPACHO > ZONA ESSA > ZONA REVO > Others (handled by the sidebar buttons easily)
-    // Within list prioritizing: RECHAZADOs first, then Pending, then Reproceso, Aceptados last to get them out of the way.
+    // Sort logic
     const statusWeight = {
         'RECHAZADO': 1,
         'PENDIENTE DE REVISIÓN': 2,
@@ -262,18 +328,25 @@ function renderVehicles(destFilter, searchTerm) {
         let matchDest = (destFilter === 'all') || (v.groupDest === destFilter);
         let matchStatus = (currentStatusFilter === 'all') || (v.status === currentStatusFilter);
         
+        // Reproceso sub-filter
+        let matchReproceso = true;
+        if (currentReprocesoFilter === 'REPUESTO') {
+            matchReproceso = v.tieneRepuestoPendiente;
+        } else if (currentReprocesoFilter === 'PINTURA') {
+            matchReproceso = v.tienePinturaPendiente;
+        }
+        
         let matchSearch = true;
         if (searchTerm) {
-            // Search by full VIN or last 6 logic
             const vinLower = v.vin.toLowerCase();
             const vinLast6 = vinLower.slice(-6);
             matchSearch = vinLower.includes(searchTerm) || vinLast6.includes(searchTerm);
         }
         
-        return matchDest && matchStatus && matchSearch;
+        return matchDest && matchStatus && matchSearch && matchReproceso;
     });
 
-    // Sort heavily by status to put priority items first
+    // Sort by status priority
     filtered.sort((a, b) => statusWeight[a.status] - statusWeight[b.status]);
 
     if (filtered.length === 0) {
@@ -283,37 +356,83 @@ function renderVehicles(destFilter, searchTerm) {
         els.vehiclesContainer.classList.remove('hidden');
         els.noResultsMsg.classList.add('hidden');
         
+        // Determine which extra column to show based on current status filter
+        const showReprocesoCol = (currentStatusFilter === 'EN REPROCESO' || currentStatusFilter === 'all');
+        const showRechazoCol = (currentStatusFilter === 'RECHAZADO' || currentStatusFilter === 'all');
+        
+        // Build TABLE
+        let tableHTML = `
+            <table class="vehicles-table">
+                <thead>
+                    <tr>
+                        <th>VIN</th>
+                        <th>Modelo</th>
+                        <th>Color</th>
+                        <th>Estado</th>
+                        <th>Destino</th>
+                        <th>Dealer</th>
+                        <th>Detalle</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        
         filtered.forEach(v => {
-            const card = document.createElement('div');
-            card.className = `vehicle-card`;
-            card.setAttribute('data-status', v.status);
-            
-            // Format Badge Color
+            // Badge class
             let badgeClass = 'badge-info';
-            if(v.status === 'RECHAZADO') badgeClass = 'badge-danger';
-            if(v.status === 'ACEPTADO') badgeClass = 'badge-success';
-            if(v.status === 'EN REPROCESO') badgeClass = 'badge-alert';
-            if(v.status === 'PENDIENTE DE REVISIÓN') badgeClass = 'badge-warning';
-            if(v.status === 'SIN ESTADO') badgeClass = 'badge-info';
-
-            card.innerHTML = `
-                <div class="card-header">
-                    <div>
-                        <h3 class="card-title">${v.vin}</h3>
-                        <p class="card-subtitle">${v.modelo} - ${v.color}</p>
-                    </div>
-                    <span class="badge ${badgeClass}">${v.status}</span>
-                </div>
-                <div class="card-body">
-                    <p><span class="label">Destino Real:</span> <span class="value">${v.destino || '-'}</span></p>
-                    <p><span class="label">Dealer:</span> <span class="value">${v.dealer || '-'}</span></p>
-                    ${v.status === 'RECHAZADO' && v.rejectionReason ? `<p><span class="label text-danger">Motivo Rechazo:</span> <span class="value text-danger" title="${v.rejectionReason}">${v.rejectionReason}</span></p>` : ''}
-                    ${v.status === 'EN REPROCESO' ? `<p><span class="label text-danger">Falta:</span> <span class="value">${v.reprocesoFalta}</span></p>` : ''}
-                </div>
-            `;
+            if (v.status === 'RECHAZADO') badgeClass = 'badge-danger';
+            if (v.status === 'ACEPTADO') badgeClass = 'badge-success';
+            if (v.status === 'EN REPROCESO') badgeClass = 'badge-alert';
+            if (v.status === 'PENDIENTE DE REVISIÓN') badgeClass = 'badge-warning';
             
-            card.addEventListener('click', () => openModal(v));
-            els.vehiclesContainer.appendChild(card);
+            // Row color class
+            let rowClass = 'row-sinestado';
+            if (v.status === 'RECHAZADO') rowClass = 'row-rechazado';
+            else if (v.status === 'ACEPTADO') rowClass = 'row-aceptado';
+            else if (v.status === 'EN REPROCESO') rowClass = 'row-reproceso';
+            else if (v.status === 'PENDIENTE DE REVISIÓN') rowClass = 'row-pendiente';
+            
+            // Detail column content varies by status
+            let detailText = '-';
+            if (v.status === 'RECHAZADO' && v.rejectionReason) {
+                detailText = v.rejectionReason;
+            } else if (v.status === 'EN REPROCESO' && v.reprocesoFalta) {
+                detailText = v.reprocesoFalta;
+            } else if (v.destino) {
+                detailText = v.taller || '-';
+            }
+            
+            tableHTML += `
+                <tr class="${rowClass}" data-vin="${v.vin}">
+                    <td class="vin-cell">${v.vin}</td>
+                    <td class="model-cell" title="${v.modelo}">${v.modelo}</td>
+                    <td>${v.color || '-'}</td>
+                    <td><span class="badge ${badgeClass}">${v.status}</span></td>
+                    <td class="dest-cell">${v.destino || '-'}</td>
+                    <td>${v.dealer || '-'}</td>
+                    <td class="detail-cell" title="${detailText}">${detailText}</td>
+                </tr>
+            `;
+        });
+        
+        tableHTML += `
+                </tbody>
+            </table>
+            <div class="table-footer">
+                <i class="fa-solid fa-table-list"></i>
+                <span>${filtered.length} vehículo${filtered.length !== 1 ? 's' : ''} encontrado${filtered.length !== 1 ? 's' : ''}</span>
+            </div>
+        `;
+        
+        els.vehiclesContainer.innerHTML = tableHTML;
+        
+        // Add click events to table rows
+        document.querySelectorAll('.vehicles-table tbody tr').forEach(row => {
+            row.addEventListener('click', () => {
+                const vin = row.getAttribute('data-vin');
+                const vehicle = allVehicles.find(v => v.vin === vin);
+                if (vehicle) openModal(vehicle);
+            });
         });
     }
 }

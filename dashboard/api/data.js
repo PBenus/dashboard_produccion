@@ -17,6 +17,9 @@ export default async function handler(req, res) {
         // - stale-while-revalidate=60: Si alguien entra justo después de los 8 min, le sirve la caché vieja instantáneamente, pero actualiza en segundo plano para el siguiente.
         res.setHeader('Cache-Control', 's-maxage=480, stale-while-revalidate=60');
         res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
         
         // Devolvemos el CSV plano al frontend
         res.status(200).send(data);

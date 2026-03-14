@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Producción</title>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fa-solid fa-car-side"></i>
+                <h2>Produccion Diaria</h2>
+            </div>
+
+            <div class="search-container">
+                <p class="search-title">Búsqueda Rápida</p>
+                <div class="search-box">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="searchInput" placeholder="Ingresa VIN o últimos 6 dígitos...">
+                </div>
+            </div>
+
+            <div class="filters">
+                <p class="filter-title">Accesos Rápidos</p>
+                <ul id="destinationFilters">
+                    <li class="active" data-dest="all">Todos los Destinos</li>
+                    <li data-dest="DESPACHO">Despacho</li>
+                    <li data-dest="ZONA EMSA">Zona EMSA</li>
+                    <li data-dest="ZONA ESSA">Zona ESSA</li>
+                    <li data-dest="ZONA REVO">Zona REVO</li>
+                    <li data-dest="ZONA AASA">Zona AASA</li>
+                    <li data-dest="OTROS">Otros Destinos</li>
+                </ul>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header>
+                <div>
+                    <h1>Monitoreo de Producción</h1>
+                    <p class="subtitle">Estado actual de vehículos y reprocesos</p>
+                </div>
+                <div class="header-actions">
+                    <p id="lastUpdate" class="last-update"><i class="fa-regular fa-clock"></i> Cargando...</p>
+                    <button id="refreshBtn" class="btn btn-primary"><i class="fa-solid fa-rotate-right"></i> Refrescar
+                        Datos</button>
+                </div>
+            </header>
+
+            <!-- KPI Cards -->
+            <section class="kpi-section">
+                <div class="kpi-card glass active" data-filter="all">
+                    <div class="kpi-icon total"><i class="fa-solid fa-car"></i></div>
+                    <div class="kpi-details">
+                        <h3>Total Vehículos</h3>
+                        <p><span id="kpi-total" class="kpi-number">--</span> <span class="kpi-pct">(100%)</span></p>
+                    </div>
+                </div>
+                <div class="kpi-card glass" data-filter="RECHAZADO">
+                    <div class="kpi-icon warning"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                    <div class="kpi-details">
+                        <h3>Rechazados</h3>
+                        <p><span id="kpi-rejected" class="kpi-number">--</span> <span id="pct-rejected" class="kpi-pct">(--%)</span></p>
+                    </div>
+                </div>
+                <div class="kpi-card glass" data-filter="PENDIENTE DE REVISIÓN">
+                    <div class="kpi-icon info"><i class="fa-solid fa-clipboard-question"></i></div>
+                    <div class="kpi-details">
+                        <h3>Pendientes de Revisión</h3>
+                        <p><span id="kpi-pending" class="kpi-number">--</span> <span id="pct-pending" class="kpi-pct">(--%)</span></p>
+                    </div>
+                </div>
+                <div class="kpi-card glass" data-filter="EN REPROCESO">
+                    <div class="kpi-icon alert"><i class="fa-solid fa-screwdriver-wrench"></i></div>
+                    <div class="kpi-details">
+                        <h3>En Reproceso</h3>
+                        <p><span id="kpi-reprocess" class="kpi-number">--</span> <span id="pct-reprocess" class="kpi-pct">(--%)</span></p>
+                    </div>
+                </div>
+                <div class="kpi-card glass" data-filter="ACEPTADO">
+                    <div class="kpi-icon success"><i class="fa-solid fa-circle-check"></i></div>
+                    <div class="kpi-details">
+                        <h3>Aceptados</h3>
+                        <p><span id="kpi-accepted" class="kpi-number">--</span> <span id="pct-accepted" class="kpi-pct">(--%)</span></p>
+                    </div>
+                </div>
+                <div class="kpi-card glass" data-filter="SIN ESTADO">
+                    <div class="kpi-icon neutral"><i class="fa-solid fa-question"></i></div>
+                    <div class="kpi-details">
+                        <h3>Sin Estado</h3>
+                        <p><span id="kpi-sinestado" class="kpi-number">--</span> <span id="pct-sinestado" class="kpi-pct">(--%)</span></p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Main Data View -->
+            <section class="data-section">
+                <div class="data-header">
+                    <h2 id="currentViewTitle">Mostrando: Todos los Destinos</h2>
+                </div>
+
+                <div id="loadingIndicator" class="loading-state">
+                    <div class="spinner"></div>
+                    <p>Procesando datos del sistema...</p>
+                </div>
+
+                <!-- Container where vehicle cards will be injected -->
+                <div id="vehiclesContainer" class="vehicles-grid hidden">
+                    <!-- Cards injected by JS -->
+                </div>
+
+                <div id="noResultsMsg" class="no-results hidden">
+                    <i class="fa-solid fa-magnifying-glass-minus"></i>
+                    <h3>No se encontraron vehículos</h3>
+                    <p>Intenta con otro VIN o cambia los filtros de destino.</p>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Vehicle Details Modal -->
+    <div id="vehicleModal" class="modal hidden">
+        <div class="modal-content glass">
+            <span class="close-btn">&times;</span>
+            <div class="modal-header">
+                <div class="modal-title-group">
+                    <h2 id="modalVin">VIN: <span>1234567890</span></h2>
+                    <span id="modalStatusBadge" class="status-badge">Estado</span>
+                </div>
+                <p id="modalModelColor" class="modal-subtitle">X70FL 1.5T 6MT 4X2 FULL - NEGRO</p>
+            </div>
+
+            <div class="modal-body">
+                <!-- Group 1: General Info -->
+                <div class="info-group">
+                    <h3><i class="fa-solid fa-circle-info"></i> Información General</h3>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <span class="label">Destino</span>
+                            <span class="value" id="mDestino">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Dealer</span>
+                            <span class="value" id="mDealer">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Ubicación ESUM</span>
+                            <span class="value" id="mUbi">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Observaciones (Taller)</span>
+                            <span class="value" id="mTaller">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Group 2: Status & Process -->
+                <div class="info-group">
+                    <h3><i class="fa-solid fa-clipboard-check"></i> Estados y Entregas</h3>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <span class="label">Preparado (K)</span>
+                            <span class="value" id="mPreparado">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Estado CC (M)</span>
+                            <span class="value" id="mEstadoCC">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Entrega EMSA/ASSA</span>
+                            <span class="value" id="mEntregaASSA">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Revisión EMSA/ASSA</span>
+                            <span class="value" id="mRevASSA">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Entrega REVO/ESSA</span>
+                            <span class="value" id="mEntregaREVO">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Revisión REVO/ESSA</span>
+                            <span class="value" id="mRevREVO">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Group 3: Reprocess Details (Only visible if applicable) -->
+                <div class="info-group highlight-group" id="reprocessGroup">
+                    <h3><i class="fa-solid fa-triangle-exclamation"></i> Detalle de Reproceso y Observaciones</h3>
+                    <div class="info-grid single-col">
+                        <div class="info-item">
+                            <span class="label">Qué Reproceso Falta</span>
+                            <span class="value text-danger" id="mQueFalta">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Reproceso Pintura</span>
+                            <span class="value" id="mPintura">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Reproceso Repuestos</span>
+                            <span class="value" id="mRepuestos">-</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="label">Observaciones Finales Revisor</span>
+                            <span class="value" id="mObsFinal">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <!-- PapaParse for parsing CSV -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>

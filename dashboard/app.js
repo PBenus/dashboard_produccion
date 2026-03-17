@@ -11,25 +11,22 @@ const els = {
     refreshBtn: document.getElementById('refreshBtn'),
     searchInput: document.getElementById('searchInput'),
     destinationFilters: document.getElementById('destinationFilters'),
-    
-    // Sidebar controls
-    sidebar: document.getElementById('sidebar'),
-    hamburgerBtn: document.getElementById('hamburgerBtn'),
-    sidebarCloseBtn: document.getElementById('sidebarCloseBtn'),
-    sidebarOverlay: document.getElementById('sidebarOverlay'),
+    qrBtn: document.getElementById('qrBtn'),
+    closeQrBtn: document.getElementById('closeQrBtn'),
     
     // Reproceso Filters
     reprocesoFilters: document.getElementById('reprocesoFilters'),
-    
+
     // Containers
     loadingIndicator: document.getElementById('loadingIndicator'),
     vehiclesContainer: document.getElementById('vehiclesContainer'),
     noResultsMsg: document.getElementById('noResultsMsg'),
-    
+    qrReaderContainer: document.getElementById('qr-reader-container'),
+
     // Dynamic Text Elements
     currentViewTitle: document.getElementById('currentViewTitle'),
     lastUpdate: document.getElementById('lastUpdate'),
-    
+
     // KPIs
     kpiTotal: document.getElementById('kpi-total'),
     kpiRejected: document.getElementById('kpi-rejected'),
@@ -37,66 +34,59 @@ const els = {
     kpiReprocess: document.getElementById('kpi-reprocess'),
     kpiAccepted: document.getElementById('kpi-accepted'),
     kpiSinEstado: document.getElementById('kpi-sinestado'),
-    
+
     // Percentages
     pctRejected: document.getElementById('pct-rejected'),
     pctPending: document.getElementById('pct-pending'),
     pctReprocess: document.getElementById('pct-reprocess'),
     pctAccepted: document.getElementById('pct-accepted'),
     pctSinEstado: document.getElementById('pct-sinestado'),
-    
+
     // Modal
     modal: document.getElementById('vehicleModal'),
     closeBtn: document.querySelector('.close-btn'),
 };
 
 // Initialize App
+let html5QrcodeScanner = null;
 document.addEventListener('DOMContentLoaded', init);
 
 function init() {
     loadData();
     setupEventListeners();
-    // Start with sidebar collapsed
-    els.sidebar.classList.add('collapsed');
 }
 
 function setupEventListeners() {
     // Refresh button
     els.refreshBtn.addEventListener('click', loadData);
-    
-    // === Sidebar Toggle ===
-    els.hamburgerBtn.addEventListener('click', openSidebar);
-    els.sidebarCloseBtn.addEventListener('click', closeSidebar);
-    els.sidebarOverlay.addEventListener('click', closeSidebar);
-    
+
     // Search input
     els.searchInput.addEventListener('input', (e) => {
         const term = e.target.value.trim().toLowerCase();
         renderVehicles(currentFilter, term);
     });
-    
+
+    // QR Code Scanner controls
+    els.qrBtn.addEventListener('click', startQrScanner);
+    els.closeQrBtn.addEventListener('click', stopQrScanner);
+
     // Category Filters
     els.destinationFilters.addEventListener('click', (e) => {
         if (e.target.tagName === 'LI') {
             // Update active styling
             document.querySelectorAll('#destinationFilters li').forEach(li => li.classList.remove('active'));
             e.target.classList.add('active');
-            
+
             // Apply filter
             currentFilter = e.target.getAttribute('data-dest');
-            
+
             // Set Titles
             els.currentViewTitle.textContent = `Mostrando: ${e.target.textContent}`;
-            
+
             // Clear search when switching tabs for better UX
             els.searchInput.value = '';
-            
-            renderVehicles(currentFilter, '');
-            
-            // Close sidebar on mobile after selecting
-            if (window.innerWidth <= 768) {
-                closeSidebar();
-            }
+
+            renderVehicles(currentFilter, ''); // render logic handles status filters naturally
         }
     });
 
@@ -106,10 +96,10 @@ function setupEventListeners() {
             // Update active styling
             document.querySelectorAll('.kpi-card').forEach(c => c.classList.remove('active'));
             card.classList.add('active');
-            
+
             // Apply status filter
             currentStatusFilter = card.getAttribute('data-filter');
-            
+
             // Reset reproceso filter
             currentReprocesoFilter = 'all';
             updateReprocesoButtons();
@@ -120,10 +110,10 @@ function setupEventListeners() {
             } else {
                 els.reprocesoFilters.classList.add('hidden');
             }
-            
+
             // Clear search when switching tabs for better UX
             els.searchInput.value = '';
-            
+
             renderVehicles(currentFilter, '');
         });
     });
@@ -144,15 +134,40 @@ function setupEventListeners() {
     });
 }
 
-// === Sidebar Functions ===
-function openSidebar() {
-    els.sidebar.classList.remove('collapsed');
-    els.sidebarOverlay.classList.remove('hidden');
+function startQrScanner() {
+    els.qrReaderContainer.classList.remove('hidden');
+    
+    // Initialize scanner if not exists
+    if (!html5QrcodeScanner) {
+        html5QrcodeScanner = new Html5QrcodeScanner(
+            "qr-reader",
+            { fps: 10, qrbox: {width: 250, height: 250} },
+            /* verbose= */ false);
+            
+        html5QrcodeScanner.render((decodedText, decodedResult) => {
+            // Success Callback
+            stopQrScanner();
+            
+            // Clean read text (sometime QR codes have prefixes)
+            const cleanVin = decodedText.trim();
+            els.searchInput.value = cleanVin;
+            
+            // Trigger search
+            renderVehicles(currentFilter, cleanVin.toLowerCase());
+        }, (errorMessage) => {
+            // parse error, ignore it.
+        });
+    }
 }
 
-function closeSidebar() {
-    els.sidebar.classList.add('collapsed');
-    els.sidebarOverlay.classList.add('hidden');
+function stopQrScanner() {
+    els.qrReaderContainer.classList.add('hidden');
+    if (html5QrcodeScanner) {
+        html5QrcodeScanner.clear().catch(error => {
+            console.error("Failed to clear html5QrcodeScanner. ", error);
+        });
+        html5QrcodeScanner = null;
+    }
 }
 
 function updateReprocesoButtons() {
@@ -164,7 +179,7 @@ function updateReprocesoButtons() {
 function loadData() {
     showLoading(true);
     els.lastUpdate.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Solicitando a Servidor...`;
-    
+
     // Fetch desde el Servidor Edge de Vercel
     fetch(CSV_URL)
         .then(response => {
@@ -187,12 +202,12 @@ function parseCSVData(csvText) {
         header: true,
         skipEmptyLines: true,
         dynamicTyping: false,
-        complete: function(results) {
+        complete: function (results) {
             processVehicles(results.data);
             els.lastUpdate.innerHTML = `<i class="fa-regular fa-clock"></i> Última act: ${new Date().toLocaleTimeString()}`;
             showLoading(false);
         },
-        error: function(error) {
+        error: function (error) {
             console.error('PapaParse Error:', error);
             showLoading(false);
         }
@@ -203,24 +218,24 @@ function processVehicles(data) {
     allVehicles = data.map(row => {
         // Safe access helper
         const getVal = (key) => row[key] ? row[key].trim() : '';
-        
+
         // Extraemos valores directos en MAYUSCULAS
         const entregaRevo = getVal('ENTREGA-REVO Y ESSA').toUpperCase();
         const revRevoEssa = getVal('REVISION-REVO Y ESSA').toUpperCase();
         const obsRevoEssa = getVal('OBSERVACION - REVO Y ESSA').toUpperCase();
-        
+
         const entregaEmsa = getVal('ENTREGA-EMSA Y ASSA').toUpperCase();
         const revEmsaAssa = getVal('REVISION-EMSA Y ASSA').toUpperCase();
         const obsEmsaAssa = getVal('OBSERVACION - EMSA Y ASSA').toUpperCase();
-        
+
         // Bloque de Revisiones
         const textoRevision = `${revRevoEssa} ${obsRevoEssa} ${revEmsaAssa} ${obsEmsaAssa}`;
-        
+
         // Bloque de Entregas
         const tieneEntrega = (entregaRevo.includes('ENTREGA') || entregaEmsa.includes('ENTREGA'));
 
         let status = 'SIN ESTADO';
-        
+
         // PRIORIDAD 1 Absoluta: Si CUALQUIER zona tiene RECHAZADO o ACEPTADO, prima eso ante todo.
         if (textoRevision.includes('RECHAZADO')) {
             status = 'RECHAZADO';
@@ -236,7 +251,7 @@ function processVehicles(data) {
             else {
                 // PRIORIDAD 3: Reprocesos Puros
                 const estadoCC = getVal('Estado CC').toUpperCase();
-                
+
                 if (estadoCC === 'REPROCESO') {
                     status = 'EN REPROCESO';
                 } else {
@@ -244,11 +259,11 @@ function processVehicles(data) {
                 }
             }
         }
-        
+
         // Cleanup destination for grouping
         let rawDest = getVal('Destino').toUpperCase();
         let groupDest = 'OTROS';
-        
+
         if (rawDest.includes('DESPACHO')) groupDest = 'DESPACHO';
         else if (rawDest.includes('EMSA')) groupDest = 'ZONA EMSA';
         else if (rawDest.includes('ESSA')) groupDest = 'ZONA ESSA';
@@ -295,7 +310,7 @@ function processVehicles(data) {
 function updateKPIs(vehicles) {
     const total = vehicles.length;
     els.kpiTotal.textContent = total;
-    
+
     const setGroupData = (statusStr, kpiEl, pctEl) => {
         const count = vehicles.filter(v => v.status === statusStr).length;
         if (kpiEl) kpiEl.textContent = count;
@@ -314,8 +329,10 @@ function updateKPIs(vehicles) {
 
 function renderVehicles(destFilter, searchTerm) {
     els.vehiclesContainer.innerHTML = '';
-    
-    // Sort logic
+
+    // Sort logic (Prioritize rules defined by user)
+    // Dest Order: DESPACHO > ZONA ESSA > ZONA REVO > Others (handled by the sidebar buttons easily)
+    // Within list prioritizing: RECHAZADOs first, then Pending, then Reproceso, Aceptados last to get them out of the way.
     const statusWeight = {
         'RECHAZADO': 1,
         'PENDIENTE DE REVISIÓN': 2,
@@ -335,14 +352,14 @@ function renderVehicles(destFilter, searchTerm) {
         } else if (currentReprocesoFilter === 'PINTURA') {
             matchReproceso = v.tienePinturaPendiente;
         }
-        
+
         let matchSearch = true;
         if (searchTerm) {
             const vinLower = v.vin.toLowerCase();
             const vinLast6 = vinLower.slice(-6);
             matchSearch = vinLower.includes(searchTerm) || vinLast6.includes(searchTerm);
         }
-        
+
         return matchDest && matchStatus && matchSearch && matchReproceso;
     });
 
@@ -440,27 +457,27 @@ function renderVehicles(destFilter, searchTerm) {
 function openModal(v) {
     const raw = v.raw;
     const getVal = (key) => raw[key] ? raw[key].trim() : '-';
-    
+
     // Header
     document.getElementById('modalVin').innerHTML = `VIN: <span>${v.vin}</span>`;
     document.getElementById('modalModelColor').textContent = `${v.modelo} - ${v.color}`;
-    
+
     // Status Badge
     const badge = document.getElementById('modalStatusBadge');
     badge.textContent = v.status;
     badge.className = 'badge'; // reset
-    if(v.status === 'RECHAZADO') badge.classList.add('badge-danger');
-    else if(v.status === 'ACEPTADO') badge.classList.add('badge-success');
-    else if(v.status === 'EN REPROCESO') badge.classList.add('badge-alert');
-    else if(v.status === 'PENDIENTE DE REVISIÓN') badge.classList.add('badge-warning');
+    if (v.status === 'RECHAZADO') badge.classList.add('badge-danger');
+    else if (v.status === 'ACEPTADO') badge.classList.add('badge-success');
+    else if (v.status === 'EN REPROCESO') badge.classList.add('badge-alert');
+    else if (v.status === 'PENDIENTE DE REVISIÓN') badge.classList.add('badge-warning');
     else badge.classList.add('badge-info');
-    
+
     // Info Group 1
     document.getElementById('mDestino').textContent = getVal('Destino');
     document.getElementById('mDealer').textContent = getVal('DEALER');
     document.getElementById('mUbi').textContent = getVal('UBICACIÓN ESUM');
     document.getElementById('mTaller').textContent = getVal('TALLER');
-    
+
     // Info Group 2
     document.getElementById('mPreparado').textContent = getVal('REALIZADO');
     document.getElementById('mEstadoCC').textContent = getVal('Estado CC');
@@ -468,14 +485,14 @@ function openModal(v) {
     document.getElementById('mRevASSA').textContent = getVal('REVISION-EMSA Y ASSA') + " " + getVal('OBSERVACION - EMSA Y ASSA');
     document.getElementById('mEntregaREVO').textContent = getVal('ENTREGA-REVO Y ESSA');
     document.getElementById('mRevREVO').textContent = getVal('REVISION-REVO Y ESSA');
-    
+
     // Info Group 3: Reprocess
     const reproGroup = document.getElementById('reprocessGroup');
     const reproFalta = getVal('QUE REPROCESO FALTA');
     const rpPintura = getVal('REPROCESO PINTURA');
     const rpRepuesto = getVal('REPROCESO REPUESTOS');
     const obsRevo = getVal('OBSERVACION - REVO Y ESSA');
-    
+
     if (reproFalta !== '-' || rpPintura !== '-' || rpRepuesto !== '-') {
         reproGroup.classList.remove('hidden');
         document.getElementById('mQueFalta').textContent = reproFalta;

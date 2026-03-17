@@ -10,23 +10,17 @@
     <!-- Font Awesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
+    <!-- QR Code Scanner Library -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 </head>
 
 <body>
     <div class="dashboard-container">
-        <!-- Sidebar Overlay (mobile) -->
-        <div class="sidebar-overlay hidden" id="sidebarOverlay"></div>
-
         <!-- Sidebar -->
-        <aside class="sidebar" id="sidebar">
-            <div class="sidebar-top-row">
-                <div class="logo">
-                    <i class="fa-solid fa-car-side"></i>
-                    <h2>Produccion Diaria</h2>
-                </div>
-                <button class="sidebar-close-btn" id="sidebarCloseBtn" title="Cerrar menú">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fa-solid fa-car-side"></i>
+                <h2>Produccion Diaria</h2>
             </div>
 
             <div class="search-container">
@@ -52,24 +46,31 @@
         </aside>
 
         <!-- Main Content -->
-        <main class="main-content" id="mainContent">
-            <header>
-                <div class="header-left">
-                    <button class="hamburger-btn" id="hamburgerBtn" title="Abrir menú">
-                        <i class="fa-solid fa-bars"></i>
-                    </button>
-                    <div>
-                        <h1>Monitoreo de Producción</h1>
-                        <p class="subtitle">Estado actual de vehículos y reprocesos</p>
+        <main class="main-content">
+            <header class="top-header">
+                <div class="header-main">
+                    <div class="logo-title">
+                        <i class="fa-solid fa-car-side logo-icon"></i>
+                        <div>
+                            <h1>Monitoreo de Producción</h1>
+                            <p class="subtitle">Estado actual de vehículos y reprocesos</p>
+                        </div>
                     </div>
-                </div>
-                <div class="header-actions">
-                    <p id="lastUpdate" class="last-update"><i class="fa-regular fa-clock"></i> Cargando...</p>
-                    <button id="refreshBtn" class="btn btn-primary"><i class="fa-solid fa-rotate-right"></i> Refrescar
-                        Datos</button>
+                    <div class="header-actions">
+                        <p id="lastUpdate" class="last-update"><i class="fa-regular fa-clock"></i> Cargando...</p>
+                        <button id="refreshBtn" class="btn btn-primary"><i class="fa-solid fa-rotate-right"></i> Refrescar Datos</button>
+                    </div>
                 </div>
             </header>
 
+            <!-- Contenedor del Lector QR (Oculto por defecto) -->
+            <div id="qr-reader-container" class="hidden">
+                <div class="qr-header">
+                    <h3>Escanea el VIN del Vehículo</h3>
+                    <button id="closeQrBtn" class="btn-close-qr"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div id="qr-reader"></div>
+            </div>
             <!-- KPI Cards -->
             <section class="kpi-section">
                 <div class="kpi-card glass active" data-filter="all">
@@ -83,35 +84,40 @@
                     <div class="kpi-icon warning"><i class="fa-solid fa-triangle-exclamation"></i></div>
                     <div class="kpi-details">
                         <h3>Rechazados</h3>
-                        <p><span id="kpi-rejected" class="kpi-number">--</span> <span id="pct-rejected" class="kpi-pct">(--%)</span></p>
+                        <p><span id="kpi-rejected" class="kpi-number">--</span> <span id="pct-rejected"
+                                class="kpi-pct">(--%)</span></p>
                     </div>
                 </div>
                 <div class="kpi-card glass" data-filter="PENDIENTE DE REVISIÓN">
                     <div class="kpi-icon info"><i class="fa-solid fa-clipboard-question"></i></div>
                     <div class="kpi-details">
                         <h3>Pendientes de Revisión</h3>
-                        <p><span id="kpi-pending" class="kpi-number">--</span> <span id="pct-pending" class="kpi-pct">(--%)</span></p>
+                        <p><span id="kpi-pending" class="kpi-number">--</span> <span id="pct-pending"
+                                class="kpi-pct">(--%)</span></p>
                     </div>
                 </div>
                 <div class="kpi-card glass" data-filter="EN REPROCESO">
                     <div class="kpi-icon alert"><i class="fa-solid fa-screwdriver-wrench"></i></div>
                     <div class="kpi-details">
                         <h3>En Reproceso</h3>
-                        <p><span id="kpi-reprocess" class="kpi-number">--</span> <span id="pct-reprocess" class="kpi-pct">(--%)</span></p>
+                        <p><span id="kpi-reprocess" class="kpi-number">--</span> <span id="pct-reprocess"
+                                class="kpi-pct">(--%)</span></p>
                     </div>
                 </div>
                 <div class="kpi-card glass" data-filter="ACEPTADO">
                     <div class="kpi-icon success"><i class="fa-solid fa-circle-check"></i></div>
                     <div class="kpi-details">
                         <h3>Aceptados</h3>
-                        <p><span id="kpi-accepted" class="kpi-number">--</span> <span id="pct-accepted" class="kpi-pct">(--%)</span></p>
+                        <p><span id="kpi-accepted" class="kpi-number">--</span> <span id="pct-accepted"
+                                class="kpi-pct">(--%)</span></p>
                     </div>
                 </div>
                 <div class="kpi-card glass" data-filter="SIN ESTADO">
                     <div class="kpi-icon neutral"><i class="fa-solid fa-question"></i></div>
                     <div class="kpi-details">
                         <h3>Sin Estado</h3>
-                        <p><span id="kpi-sinestado" class="kpi-number">--</span> <span id="pct-sinestado" class="kpi-pct">(--%)</span></p>
+                        <p><span id="kpi-sinestado" class="kpi-number">--</span> <span id="pct-sinestado"
+                                class="kpi-pct">(--%)</span></p>
                     </div>
                 </div>
             </section>

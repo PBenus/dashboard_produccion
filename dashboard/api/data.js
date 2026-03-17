@@ -1,30 +1,51 @@
 export default async function handler(req, res) {
-    // URL expuesta del CSV de Google Sheets
-    const csvUrl = "https://docs.google.com/spreadsheets/d/127m75upB5IPnxQWN7qMqQIJPi-DTQfdjNM66u9NFGfw/export?format=csv&gid=710295863";
+    // Definir los URLs de exportación CSV de todos los Google Sheets involucrados
+    const sheets = {
+        // 1. Archivo Maestro de Producción (Vehículos base)
+        master: "https://docs.google.com/spreadsheets/d/127m75upB5IPnxQWN7qMqQIJPi-DTQfdjNM66u9NFGfw/export?format=csv&gid=710295863",
+        
+        // 2. Drive EMSA/DESPACHO/ASSA
+        emsa_entregas: "https://docs.google.com/spreadsheets/d/152otxIaA-PFZvwvgXz9aMtHxK7m_mWebkZNQrbQpdPA/gviz/tq?tqx=out:csv&sheet=Entregas+Otros+Dealers",
+        emsa_revision: "https://docs.google.com/spreadsheets/d/152otxIaA-PFZvwvgXz9aMtHxK7m_mWebkZNQrbQpdPA/gviz/tq?tqx=out:csv&sheet=Revision+Otros+Dealers",
+        
+        // 3. Drive REVO/ESSA
+        revo_entregas: "https://docs.google.com/spreadsheets/d/1w56CxJlyztpajgfOVDOfu-Fag2lYOBEfWVylVZRddjc/gviz/tq?tqx=out:csv&sheet=Entregas",
+        revo_revision: "https://docs.google.com/spreadsheets/d/1w56CxJlyztpajgfOVDOfu-Fag2lYOBEfWVylVZRddjc/gviz/tq?tqx=out:csv&sheet=Unidades+Revisadas"
+    };
 
     try {
-        // Hacemos la peticion a Google Sheets
-        const response = await fetch(csvUrl);
-        
-        if (!response.ok) {
-            throw new Error(`Google Sheets respondió con status ${response.status}`);
-        }
+        // Realizar las 5 peticiones HTTP en paralelo para máxima velocidad
+        const fetchPromises = Object.entries(sheets).map(async ([key, url]) => {
+            const response = await fetch(url);
+            if (!response.ok) {
+                console.error(`Error al obtener hoja ${key}. Status: ${response.status}`);
+                return { key, data: "" }; // Fallback preventivo
+            }
+            const textData = await response.text();
+            return { key, data: textData };
+        });
 
-        const data = await response.text();
+        // Esperar a que todos los CSVs terminen de descargar
+        const results = await Promise.all(fetchPromises);
+
+        // Agrupar los CSVs en un único objeto JSON
+        const payload = {};
+        results.forEach(result => {
+            payload[result.key] = result.data;
+        });
 
         // Configuración crítica de caché (8 minutos = 480 segundos)
-        // - s-maxage=480: Vercel guardará este archivo en caché por 480 segundos en sus servidores mundiales.
-        // - stale-while-revalidate=60: Si alguien entra justo después de los 8 min, le sirve la caché vieja instantáneamente, pero actualiza en segundo plano para el siguiente.
         res.setHeader('Cache-Control', 's-maxage=480, stale-while-revalidate=60');
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
         
-        // Devolvemos el CSV plano al frontend
-        res.status(200).send(data);
+        // Devolvemos el gran paquete de de datos JSON al frontend
+        res.status(200).json(payload);
+        
     } catch (error) {
-        console.error("Error al obtener los datos de Google Sheets:", error);
-        res.status(500).json({ error: "Fallo al obtener los datos de producción", details: error.message });
+        console.error("Error crítico general al obtener los datos multiplataforma:", error);
+        res.status(500).json({ error: "Fallo de conexión múltiple con Google Drive", details: error.message });
     }
 }

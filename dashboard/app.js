@@ -184,55 +184,148 @@ function loadData() {
     fetch(CSV_URL)
         .then(response => {
             if (!response.ok) throw new Error('Error en el servidor Vercel');
-            return response.text();
+            return response.json(); // Ahora esperamos un JSON con 5 CSVs
         })
-        .then(csvText => {
-            parseCSVData(csvText);
+        .then(jsonPayload => {
+            parseAllData(jsonPayload);
         })
         .catch(error => {
-            console.error('Error fetching CSV from API:', error);
+            console.error('Error fetching data from API:', error);
             alert('Fallo de conexión en la Nube. Intenta recargar la página.');
             showLoading(false);
             els.lastUpdate.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="color:var(--danger)"></i> Error en nube`;
         });
 }
 
-function parseCSVData(csvText) {
-    Papa.parse(csvText, {
-        header: true,
-        skipEmptyLines: true,
-        dynamicTyping: false,
-        complete: function (results) {
-            processVehicles(results.data);
-            els.lastUpdate.innerHTML = `<i class="fa-regular fa-clock"></i> Última act: ${new Date().toLocaleTimeString()}`;
-            showLoading(false);
-        },
-        error: function (error) {
-            console.error('PapaParse Error:', error);
-            showLoading(false);
-        }
+function parseAllData(payload) {
+    // 1. Array de promesas para parsear cada CSV individual
+    const parsePromises = [];
+
+    // Master CSV con headers
+    parsePromises.push(new Promise(resolve => {
+        Papa.parse(payload.master, {
+            header: true, skipEmptyLines: true, dynamicTyping: false,
+            complete: res => resolve({ key: 'master', data: res.data })
+        });
+    }));
+
+    // CSVs Secundarios SIN headers (para usar índices fijos)
+    const secondaryKeys = ['emsa_entregas', 'emsa_revision', 'revo_entregas', 'revo_revision'];
+    secondaryKeys.forEach(key => {
+        parsePromises.push(new Promise(resolve => {
+            Papa.parse(payload[key] || "", {
+                header: false, skipEmptyLines: true, dynamicTyping: false,
+                complete: res => resolve({ key: key, data: res.data })
+            });
+        }));
+    });
+
+    Promise.all(parsePromises).then(results => {
+        // Convertir el array de resultados a un objeto manejable
+        const parsed = {};
+        results.forEach(r => parsed[r.key] = r.data);
+        
+        buildLookupsAndProcess(parsed);
+    }).catch(err => {
+        console.error('Error parseando CSVs:', err);
+        showLoading(false);
     });
 }
 
-function processVehicles(data) {
+function buildLookupsAndProcess(parsedData) {
+    // Diccionarios para cruzar la data rápidamente usando el VIN como llave
+    const dictEmsa = {};
+    const dictRevo = {};
+
+    // Helper para procesar Entregas
+    // arr: array bidimensional (filas/columnas)
+    // dict: el diccionario a llenar
+    // idxVin: indice de col para VIN (B -> 1)
+    // idxFecha: indice de col para fecha (A -> 0)
+    // idxEntrega: indice de col para nro entrega (P -> 15 o O -> 14)
+    const processEntregas = (arr, dict, idxVin, idxFecha, idxEntrega) => {
+        // Asumimos que la fila 0 y 1 podrían ser encabezados visuales, por lo que saltamos las primeras filas si no parece un VIN
+        arr.forEach(row => {
+            if (row.length < Math.max(idxVin, idxEntrega) + 1) return;
+            const vin = row[idxVin] ? row[idxVin].toString().trim() : "";
+            if (!vin || vin.length < 5) return; // Validación básica de VIN
+
+            if (!dict[vin]) dict[vin] = { entregaDate: "", entregaNum: "", status: "", obs: "", revDate: "" };
+            dict[vin].entregaDate = row[idxFecha] ? row[idxFecha].toString().trim() : "";
+            dict[vin].entregaNum = row[idxEntrega] ? row[idxEntrega].toString().trim() : "";
+            
+            // Artificial string para emular logica anterior
+            dict[vin].oldLogicEntregaStr = `ENTREGA ${dict[vin].entregaNum}`;
+        });
+    };
+
+    // Helper para procesar Revisiones
+    // idxEstado: (E -> 4)
+    // idxObs: (F -> 5)
+    const processRevisiones = (arr, dict, idxVin, idxFecha, idxEstado, idxObs) => {
+        arr.forEach(row => {
+            if (row.length < Math.max(idxVin, idxEstado) + 1) return;
+            const vin = row[idxVin] ? row[idxVin].toString().trim() : "";
+            if (!vin || vin.length < 5) return;
+
+            if (!dict[vin]) dict[vin] = { entregaDate: "", entregaNum: "", status: "", obs: "", revDate: "" };
+            dict[vin].revDate = row[idxFecha] ? row[idxFecha].toString().trim() : "";
+            dict[vin].status = row[idxEstado] ? row[idxEstado].toString().trim().toUpperCase() : "";
+            dict[vin].obs = row[idxObs] ? row[idxObs].toString().trim() : "";
+            
+            // Artificial string para emular logica anterior
+            dict[vin].oldLogicRevisionStr = `${dict[vin].status} ${dict[vin].obs}`;
+        });
+    };
+
+    // Llenamos diccionarios (procesamiento hacia abajo, el último sobreescribe y queda como vigente)
+    // EMSA (VIN: Col B(1), Fecha Col A(0), Entrega Col P(15))
+    processEntregas(parsedData.emsa_entregas, dictEmsa, 1, 0, 15);
+    // EMSA Revisiones (VIN: Col B(1), Fecha Col A(0), Estado Col E(4), Obs Col F(5))
+    processRevisiones(parsedData.emsa_revision, dictEmsa, 1, 0, 4, 5);
+
+    // REVO (VIN: Col B(1), Fecha Col A(0), Entrega Col O(14))
+    processEntregas(parsedData.revo_entregas, dictRevo, 1, 0, 14);
+    // REVO Revisiones (VIN: Col B(1), Fecha Col A(0), Estado Col E(4), Obs Col F(5))
+    processRevisiones(parsedData.revo_revision, dictRevo, 1, 0, 4, 5);
+
+    // Finalmente mandamos los vehículos originales y los diccionarios al procesador principal
+    processVehicles(parsedData.master, dictEmsa, dictRevo);
+    
+    // UI Update final
+    els.lastUpdate.innerHTML = `<i class="fa-regular fa-clock"></i> Última act: ${new Date().toLocaleTimeString()}`;
+    showLoading(false);
+}
+
+function processVehicles(data, dictEmsa, dictRevo) {
     allVehicles = data.map(row => {
         // Safe access helper
         const getVal = (key) => row[key] ? row[key].trim() : '';
 
-        // Extraemos valores directos en MAYUSCULAS
-        const entregaRevo = getVal('ENTREGA-REVO Y ESSA').toUpperCase();
-        const revRevoEssa = getVal('REVISION-REVO Y ESSA').toUpperCase();
-        const obsRevoEssa = getVal('OBSERVACION - REVO Y ESSA').toUpperCase();
+        const vin = getVal('VIN');
+        if (!vin) return null;
 
-        const entregaEmsa = getVal('ENTREGA-EMSA Y ASSA').toUpperCase();
-        const revEmsaAssa = getVal('REVISION-EMSA Y ASSA').toUpperCase();
-        const obsEmsaAssa = getVal('OBSERVACION - EMSA Y ASSA').toUpperCase();
+        // Cleanup destination for grouping
+        let rawDest = getVal('Destino').toUpperCase();
+        let groupDest = 'OTROS';
 
-        // Bloque de Revisiones
-        const textoRevision = `${revRevoEssa} ${obsRevoEssa} ${revEmsaAssa} ${obsEmsaAssa}`;
+        if (rawDest.includes('DESPACHO')) groupDest = 'DESPACHO';
+        else if (rawDest.includes('EMSA')) groupDest = 'ZONA EMSA';
+        else if (rawDest.includes('ESSA')) groupDest = 'ZONA ESSA';
+        else if (rawDest.includes('REVO')) groupDest = 'ZONA REVO';
+        else if (rawDest.includes('AASA') || rawDest.includes('ASSA')) groupDest = 'ZONA AASA';
 
-        // Bloque de Entregas
-        const tieneEntrega = (entregaRevo.includes('ENTREGA') || entregaEmsa.includes('ENTREGA'));
+        // Determinar qué diccionario usar según el destino
+        const isRevoEssa = (groupDest === 'ZONA REVO' || groupDest === 'ZONA ESSA');
+        const activeDictInfo = isRevoEssa ? (dictRevo[vin] || {}) : (dictEmsa[vin] || {});
+
+        // Extraemos valores simulados para la lógica de estados
+        const entregaStr = activeDictInfo.oldLogicEntregaStr || "";
+        const revisionStr = activeDictInfo.oldLogicRevisionStr || "";
+
+        // Bloque de Entregas y Revisiones
+        const textoRevision = revisionStr.toUpperCase();
+        const tieneEntrega = entregaStr.includes('ENTREGA');
 
         let status = 'SIN ESTADO';
 
@@ -260,22 +353,10 @@ function processVehicles(data) {
             }
         }
 
-        // Cleanup destination for grouping
-        let rawDest = getVal('Destino').toUpperCase();
-        let groupDest = 'OTROS';
-
-        if (rawDest.includes('DESPACHO')) groupDest = 'DESPACHO';
-        else if (rawDest.includes('EMSA')) groupDest = 'ZONA EMSA';
-        else if (rawDest.includes('ESSA')) groupDest = 'ZONA ESSA';
-        else if (rawDest.includes('REVO')) groupDest = 'ZONA REVO';
-        else if (rawDest.includes('AASA') || rawDest.includes('ASSA')) groupDest = 'ZONA AASA';
-
-        // Get explicit Rejection Observation (Col W or Z)
-        const obsRevoFinal = getVal('OBSERVACION - REVO Y ESSA');
-        const obsEmsaFinal = getVal('OBSERVACION - EMSA Y ASSA');
-        const rejectionReason = obsRevoFinal ? obsRevoFinal : obsEmsaFinal;
+        // Observación de rechazo directa del dict
+        const rejectionReason = activeDictInfo.obs || '';
         
-        // Reproceso details for sub-filtering
+        // Reproceso details for sub-filtering (Aún vienen del maestro)
         const rpPintura = getVal('REPROCESO PINTURA');
         const rpRepuestos = getVal('REPROCESO REPUESTOS');
         
@@ -285,7 +366,8 @@ function processVehicles(data) {
 
         return {
             raw: row, // Keep raw row for modal
-            vin: getVal('VIN'),
+            extraInfo: activeDictInfo, // Guardar la data cruzada para el modal
+            vin: vin,
             modelo: getVal('MODELO'),
             color: getVal('COLOR'),
             destino: getVal('Destino'),
@@ -301,10 +383,10 @@ function processVehicles(data) {
             tieneRepuestoPendiente: tieneRepuestoPendiente,
             tienePinturaPendiente: tienePinturaPendiente
         };
-    }).filter(v => v.vin); // Only keep valid rows with VIN
+    }).filter(v => v !== null); // Only keep valid rows with VIN
 
     updateKPIs(allVehicles);
-    renderVehicles(currentFilter, '');
+    renderVehicles(currentFilter, els.searchInput.value.trim().toLowerCase());
 }
 
 function updateKPIs(vehicles) {
@@ -478,27 +560,35 @@ function openModal(v) {
     document.getElementById('mUbi').textContent = getVal('UBICACIÓN ESUM');
     document.getElementById('mTaller').textContent = getVal('TALLER');
 
-    // Info Group 2
+    // Info Group 2 (Datos del diccionario extra cruzado extraInfo)
+    const ex = v.extraInfo || {};
     document.getElementById('mPreparado').textContent = getVal('REALIZADO');
     document.getElementById('mEstadoCC').textContent = getVal('Estado CC');
-    document.getElementById('mEntregaASSA').textContent = getVal('ENTREGA-EMSA Y ASSA');
-    document.getElementById('mRevASSA').textContent = getVal('REVISION-EMSA Y ASSA') + " " + getVal('OBSERVACION - EMSA Y ASSA');
-    document.getElementById('mEntregaREVO').textContent = getVal('ENTREGA-REVO Y ESSA');
-    document.getElementById('mRevREVO').textContent = getVal('REVISION-REVO Y ESSA');
+    
+    // Mostramos la data del drive secundario
+    document.getElementById('mEntregaASSA').textContent = ex.entregaNum ? `${ex.entregaNum} (${ex.entregaDate})` : '-';
+    document.getElementById('mRevASSA').textContent = ex.status ? `${ex.status} (${ex.revDate})` : '-';
+    
+    // Ocultaremos los campos redundantes (ya que ahora unificamos por diccionario y destino)
+    document.getElementById('mEntregaREVO').parentElement.style.display = 'none';
+    document.getElementById('mRevREVO').parentElement.style.display = 'none';
+
+    // Para evitar confusión, cambiamos los labels dinámicamente:
+    document.getElementById('mEntregaASSA').previousElementSibling.innerHTML = '<i class="fa-solid fa-truck"></i> Nro Entrega & Fecha';
+    document.getElementById('mRevASSA').previousElementSibling.innerHTML = '<i class="fa-solid fa-clipboard-check"></i> Estado Revisión & Fecha';
 
     // Info Group 3: Reprocess
     const reproGroup = document.getElementById('reprocessGroup');
     const reproFalta = getVal('QUE REPROCESO FALTA');
     const rpPintura = getVal('REPROCESO PINTURA');
     const rpRepuesto = getVal('REPROCESO REPUESTOS');
-    const obsRevo = getVal('OBSERVACION - REVO Y ESSA');
 
     if (reproFalta !== '-' || rpPintura !== '-' || rpRepuesto !== '-') {
         reproGroup.classList.remove('hidden');
         document.getElementById('mQueFalta').textContent = reproFalta;
         document.getElementById('mPintura').textContent = rpPintura;
         document.getElementById('mRepuestos').textContent = rpRepuesto;
-        document.getElementById('mObsFinal').textContent = obsRevo !== '-' ? obsRevo : getVal('OBSERVACION - EMSA Y ASSA');
+        document.getElementById('mObsFinal').textContent = ex.obs ? ex.obs : '-';
     } else {
         reproGroup.classList.add('hidden');
     }

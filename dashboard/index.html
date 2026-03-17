@@ -16,35 +16,6 @@
 
 <body>
     <div class="dashboard-container">
-        <!-- Sidebar -->
-        <aside class="sidebar">
-            <div class="logo">
-                <i class="fa-solid fa-car-side"></i>
-                <h2>Produccion Diaria</h2>
-            </div>
-
-            <div class="search-container">
-                <p class="search-title">Búsqueda Rápida</p>
-                <div class="search-box">
-                    <i class="fa-solid fa-magnifying-glass"></i>
-                    <input type="text" id="searchInput" placeholder="Ingresa VIN o últimos 6 dígitos...">
-                </div>
-            </div>
-
-            <div class="filters">
-                <p class="filter-title">Accesos Rápidos</p>
-                <ul id="destinationFilters">
-                    <li class="active" data-dest="all">Todos los Destinos</li>
-                    <li data-dest="DESPACHO">Despacho</li>
-                    <li data-dest="ZONA EMSA">Zona EMSA</li>
-                    <li data-dest="ZONA ESSA">Zona ESSA</li>
-                    <li data-dest="ZONA REVO">Zona REVO</li>
-                    <li data-dest="ZONA AASA">Zona AASA</li>
-                    <li data-dest="OTROS">Otros Destinos</li>
-                </ul>
-            </div>
-        </aside>
-
         <!-- Main Content -->
         <main class="main-content">
             <header class="top-header">
@@ -59,6 +30,27 @@
                     <div class="header-actions">
                         <p id="lastUpdate" class="last-update"><i class="fa-regular fa-clock"></i> Cargando...</p>
                         <button id="refreshBtn" class="btn btn-primary"><i class="fa-solid fa-rotate-right"></i> Refrescar Datos</button>
+                    </div>
+                </div>
+
+                <div class="header-controls">
+                    <div class="search-container">
+                        <div class="search-box">
+                            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                            <input type="text" id="searchInput" placeholder="Ingresa VIN o últimos 6 dígitos...">
+                            <button id="qrBtn" class="qr-btn" title="Escanear QR VIN"><i class="fa-solid fa-qrcode"></i></button>
+                        </div>
+                    </div>
+                    
+                    <div class="dest-filters-container">
+                        <ul id="destinationFilters" class="horizontal-filters">
+                            <li class="active" data-dest="all">Todos</li>
+                            <li data-dest="DESPACHO">Despacho</li>
+                            <li data-dest="ZONA EMSA">EMSA</li>
+                            <li data-dest="ZONA ESSA">ESSA</li>
+                            <li data-dest="ZONA REVO">REVO</li>
+                            <li data-dest="ZONA AASA">AASA</li>
+                        </ul>
                     </div>
                 </div>
             </header>

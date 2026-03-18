@@ -470,7 +470,10 @@ function renderVehicles(destFilter, searchTerm) {
                         <th>Estado</th>
                         <th>Destino</th>
                         <th>Dealer</th>
-                        <th>Detalle</th>
+                        <th>Estado CC</th>
+                        <th>Qué Reproceso Falta</th>
+                        <th>Nro Entrega & Fecha</th>
+                        <th>Estado Revisión & Fecha</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -491,15 +494,10 @@ function renderVehicles(destFilter, searchTerm) {
             else if (v.status === 'EN REPROCESO') rowClass = 'row-reproceso';
             else if (v.status === 'PENDIENTE DE REVISIÓN') rowClass = 'row-pendiente';
             
-            // Detail column content varies by status
-            let detailText = '-';
-            if (v.status === 'RECHAZADO' && v.rejectionReason) {
-                detailText = v.rejectionReason;
-            } else if (v.status === 'EN REPROCESO' && v.reprocesoFalta) {
-                detailText = v.reprocesoFalta;
-            } else if (v.destino) {
-                detailText = v.taller || '-';
-            }
+            // Extract dictionary mapped data
+            const ex = v.extraInfo || {};
+            const entregaStr = ex.entregaNum ? `${ex.entregaNum} (${ex.entregaDate})` : '-';
+            const revisionStr = ex.status ? `${ex.status} (${ex.revDate})` : '-';
             
             tableHTML += `
                 <tr class="${rowClass}" data-vin="${v.vin}">
@@ -509,7 +507,10 @@ function renderVehicles(destFilter, searchTerm) {
                     <td><span class="badge ${badgeClass}">${v.status}</span></td>
                     <td class="dest-cell">${v.destino || '-'}</td>
                     <td>${v.dealer || '-'}</td>
-                    <td class="detail-cell" title="${detailText}">${detailText}</td>
+                    <td>${v.estadoCC || '-'}</td>
+                    <td class="text-danger">${v.reprocesoFalta || '-'}</td>
+                    <td>${entregaStr}</td>
+                    <td>${revisionStr}</td>
                 </tr>
             `;
         });

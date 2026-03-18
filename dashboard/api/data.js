@@ -21,22 +21,24 @@ export default async function handler(req) {
         // Realizar las 5 peticiones HTTP en paralelo para máxima velocidad
         const fetchPromises = Object.entries(sheets).map(async ([key, url]) => {
             try {
-                // Timeout manual para rechazar si Google Drive se demora mas de 8s (Edge limite es más alto, pero es mejor prevenir)
+                // Timeout manual en Vercel Edge (Edge soporta hasta 30s, ponemos 25s para ser seguros)
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 8500);
+                const timeoutId = setTimeout(() => controller.abort(), 25000);
                 
                 const response = await fetch(url, { signal: controller.signal });
                 clearTimeout(timeoutId);
                 
                 if (!response.ok) {
                     console.error(`Error HTTP hoja ${key}. Status: ${response.status}`);
-                    return { key, data: "" }; // Fallback
+                    if (key === 'master') throw new Error(`Google Drive rechazó la hoja Maestra (Http ${response.status})`);
+                    return { key, data: "" }; // Fallback secundario
                 }
                 const textData = await response.text();
                 return { key, data: textData };
             } catch (err) {
                 console.error(`Timeout o error de red en hoja ${key}`, err);
-                return { key, data: "" }; // Fallback silencioso para no romper todo
+                if (key === 'master') throw new Error(`La hoja Maestra de Google Drive tardó más de 25s o falló la red.`);
+                return { key, data: "" }; // Fallback silencioso solo para hojas secundarias
             }
         });
 

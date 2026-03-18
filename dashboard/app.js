@@ -450,6 +450,10 @@ function processVehicles(data, dictEmsa, dictRevo) {
         const tieneRepuestoPendiente = rpRepuestos !== '' && rpRepuestos.toUpperCase() !== 'OK' && rpRepuestos !== '-';
         const tienePinturaPendiente = rpPintura !== '' && rpPintura.toUpperCase() !== 'OK' && rpPintura !== '-';
 
+        // Extract Ubicacion
+        const ubicacionEsum = getVal('UBICACIÓN ESUM');
+        if (ubicacionEsum) availableUbis.add(ubicacionEsum);
+
         // Calculate Delta Rejection Time if RECHAZADO
         let rejectionDeltaStr = '-';
         let isCriticalRejection = false;

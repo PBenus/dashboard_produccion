@@ -258,9 +258,16 @@ function loadData() {
         })
         .catch(error => {
             console.error('Error fetching data from API:', error);
-            alert('Fallo de conexión en la Nube. Intenta recargar la página.');
             showLoading(false);
-            els.lastUpdate.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="color:var(--danger)"></i> Error en nube`;
+            els.lastUpdate.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="color:var(--danger)"></i> Error Nube`;
+            els.vehiclesContainer.innerHTML = `
+                <div class="no-results">
+                    <i class="fa-solid fa-cloud-bolt text-danger"></i>
+                    <h3>Error de Conexión</h3>
+                    <p>Google o el servidor tardaron demasiado. Intenta recargar en un minuto.</p>
+                </div>
+            `;
+            els.vehiclesContainer.classList.remove('hidden');
         });
 }
 
@@ -296,6 +303,15 @@ function parseAllData(payload) {
     }).catch(err => {
         console.error('Error parseando CSVs:', err);
         showLoading(false);
+        els.lastUpdate.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="color:var(--danger)"></i> Error JS`;
+        els.vehiclesContainer.innerHTML = `
+            <div class="no-results">
+                <i class="fa-solid fa-bug text-danger"></i>
+                <h3>Error Analizando Datos</h3>
+                <p>Ocurrió un problema construyendo la tabla.</p>
+            </div>
+        `;
+        els.vehiclesContainer.classList.remove('hidden');
     });
 }
 

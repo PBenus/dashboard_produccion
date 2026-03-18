@@ -431,9 +431,49 @@ function processVehicles(data, dictEmsa, dictRevo) {
         const tieneRepuestoPendiente = rpRepuestos !== '' && rpRepuestos.toUpperCase() !== 'OK' && rpRepuestos !== '-';
         const tienePinturaPendiente = rpPintura !== '' && rpPintura.toUpperCase() !== 'OK' && rpPintura !== '-';
 
-        // Extract Ubicacion
-        const ubicacionEsum = getVal('UBICACIÓN ESUM');
-        if (ubicacionEsum) availableUbis.add(ubicacionEsum);
+        // Calculate Delta Rejection Time if RECHAZADO
+        let rejectionDeltaStr = '-';
+        let isCriticalRejection = false;
+
+        if (status === 'RECHAZADO' && activeDictInfo.revDate) {
+            // "16/03/2026 15:30:00" -> Parse this Google Sheet date format
+            try {
+                // Remove weird chars if any
+                const cleanDate = activeDictInfo.revDate.trim();
+                
+                // Assuming format DD/MM/YYYY HH:mm:ss or similar from Sheets
+                // Simple parsing (split by space, then split by / and :)
+                const parts = cleanDate.split(' ');
+                if (parts.length >= 2) {
+                    const dPart = parts[0].split('/');
+                    const tPart = parts[1].split(':');
+                    
+                    if (dPart.length === 3 && tPart.length >= 2) {
+                        // JS Date needs YYYY, MM (0-11), DD, HH, MM
+                        const revD = new Date(dPart[2], parseInt(dPart[1])-1, dPart[0], tPart[0], tPart[1]);
+                        
+                        const now = new Date(); // Local Time from browser
+                        const diffMs = now - revD;
+                        
+                        // Si diffMs es negativa (fechas futuras mal puestas), ignora
+                        if (diffMs > 0) {
+                            const diffHrs = (diffMs / (1000 * 60 * 60));
+                            
+                            isCriticalRejection = diffHrs > 3; // +3 hours = Red
+                            
+                            if (diffHrs < 24) {
+                                rejectionDeltaStr = `${Math.floor(diffHrs)} hrs`;
+                            } else {
+                                const diffDays = diffHrs / 24;
+                                rejectionDeltaStr = `${Math.floor(diffDays)} días`;
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('Fecha no parseable:', activeDictInfo.revDate);
+            }
+        }
 
         return {
             raw: row, // Keep raw row for modal
@@ -450,6 +490,8 @@ function processVehicles(data, dictEmsa, dictRevo) {
             reprocesoFalta: getVal('QUE REPROCESO FALTA'),
             taller: getVal('TALLER'),
             rejectionReason: rejectionReason,
+            rejectionDeltaStr: rejectionDeltaStr,
+            isCriticalRejection: isCriticalRejection,
             rpPintura: rpPintura,
             rpRepuestos: rpRepuestos,
             tieneRepuestoPendiente: tieneRepuestoPendiente,
@@ -543,6 +585,7 @@ function renderVehicles(destFilter, searchTerm) {
             <table class="vehicles-table">
                 <thead>
                     <tr>
+                        <th style="color:var(--danger)">Delta Rechazo</th>
                         <th>VIN</th>
                         <th>Modelo</th>
                         <th>Color</th>
@@ -579,8 +622,16 @@ function renderVehicles(destFilter, searchTerm) {
             const entregaStr = ex.entregaNum ? `${ex.entregaNum} (${ex.entregaDate})` : '-';
             const revisionStr = ex.status ? `${ex.status} (${ex.revDate})` : '-';
             
+            // Rejection Delta Span logic
+            let deltaHTML = `<td>-</td>`;
+            if (v.status === 'RECHAZADO') {
+                const addDangerClass = v.isCriticalRejection ? 'badge badge-danger' : 'badge badge-info';
+                deltaHTML = `<td><span class="${addDangerClass}"><i class="fa-regular fa-clock"></i> ${v.rejectionDeltaStr}</span></td>`;
+            }
+            
             tableHTML += `
                 <tr class="${rowClass}" data-vin="${v.vin}">
+                    ${deltaHTML}
                     <td class="vin-cell">${v.vin}</td>
                     <td class="model-cell" title="${v.modelo}">${v.modelo}</td>
                     <td>${v.color || '-'}</td>

@@ -305,10 +305,13 @@ function parseAllData(payload) {
         showLoading(false);
         els.lastUpdate.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="color:var(--danger)"></i> Error JS`;
         els.vehiclesContainer.innerHTML = `
-            <div class="no-results">
-                <i class="fa-solid fa-bug text-danger"></i>
-                <h3>Error Analizando Datos</h3>
-                <p>Ocurrió un problema construyendo la tabla.</p>
+            <div class="no-results" style="text-align: left; padding: 2rem; background: #fee2e2; border-radius: 8px;">
+                <i class="fa-solid fa-bug text-danger" style="font-size: 2rem;"></i>
+                <h3 class="text-danger" style="margin-top: 1rem;">Crash en Tabla</h3>
+                <p><strong>Razón:</strong> ${err.message}</p>
+                <div style="margin-top: 1rem; padding: 1rem; background: #fff; border: 1px solid #fca5a5; font-size: 0.8rem; overflow-x: auto;">
+                    ${err.stack || 'Sin Stack Trace'}
+                </div>
             </div>
         `;
         els.vehiclesContainer.classList.remove('hidden');

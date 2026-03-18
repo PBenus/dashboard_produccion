@@ -41,6 +41,21 @@
                             <button id="qrBtn" class="qr-btn" title="Escanear QR VIN"><i class="fa-solid fa-qrcode"></i></button>
                         </div>
                     </div>
+
+                    <div class="filter-dropdown-wrapper" id="ubiDropdownWrapper">
+                        <button id="ubiDropdownBtn" class="btn dropdown-btn">
+                            Ubicación ESUM <span id="ubiCountBadge" class="badge badge-info hidden" style="margin-left: 5px;">0</span> <i class="fa-solid fa-chevron-down" style="margin-left: 5px;"></i>
+                        </button>
+                        <div id="ubiDropdownMenu" class="dropdown-menu hidden">
+                            <div class="dropdown-header">
+                                <span>Filtrar Múltiples Procesos</span>
+                                <button id="ubiClearBtn" class="btn-clear text-danger">Limpiar</button>
+                            </div>
+                            <div class="dropdown-list" id="ubiCheckboxList">
+                                <!-- Checkboxes injected by JS -->
+                            </div>
+                        </div>
+                    </div>
                     
                     <div class="dest-filters-container">
                         <ul id="destinationFilters" class="horizontal-filters">

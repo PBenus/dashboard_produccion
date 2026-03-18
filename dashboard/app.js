@@ -4,6 +4,8 @@ let allVehicles = [];
 let currentFilter = 'all';
 let currentStatusFilter = 'all';
 let currentReprocesoFilter = 'all'; // 'all', 'REPUESTO', or 'PINTURA'
+let currentUbiFilters = [];         // Array of selected ESUM locations
+let availableUbis = new Set();      // Complete dictionary of unique locations
 
 // DOM Elements
 const els = {
@@ -13,6 +15,13 @@ const els = {
     destinationFilters: document.getElementById('destinationFilters'),
     qrBtn: document.getElementById('qrBtn'),
     closeQrBtn: document.getElementById('closeQrBtn'),
+    
+    // Ubicación ESUM Dropdown
+    ubiDropdownBtn: document.getElementById('ubiDropdownBtn'),
+    ubiDropdownMenu: document.getElementById('ubiDropdownMenu'),
+    ubiClearBtn: document.getElementById('ubiClearBtn'),
+    ubiCheckboxList: document.getElementById('ubiCheckboxList'),
+    ubiCountBadge: document.getElementById('ubiCountBadge'),
     
     // Reproceso Filters
     reprocesoFilters: document.getElementById('reprocesoFilters'),
@@ -69,6 +78,25 @@ function setupEventListeners() {
     // QR Code Scanner controls
     els.qrBtn.addEventListener('click', startQrScanner);
     els.closeQrBtn.addEventListener('click', stopQrScanner);
+
+    // Ubicación ESUM Dropdown Logic
+    els.ubiDropdownBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        els.ubiDropdownMenu.classList.toggle('hidden');
+    });
+
+    window.addEventListener('click', (e) => {
+        if (!els.ubiDropdownBtn.contains(e.target) && !els.ubiDropdownMenu.contains(e.target)) {
+            els.ubiDropdownMenu.classList.add('hidden');
+        }
+    });
+
+    els.ubiClearBtn.addEventListener('click', () => {
+        currentUbiFilters = [];
+        document.querySelectorAll('.ubi-checkbox').forEach(cb => cb.checked = false);
+        updateUbiBadge();
+        renderVehicles(currentFilter, els.searchInput.value.trim().toLowerCase());
+    });
 
     // Category Filters
     els.destinationFilters.addEventListener('click', (e) => {
@@ -174,6 +202,45 @@ function updateReprocesoButtons() {
     document.querySelectorAll('.btn-reproceso').forEach(btn => {
         btn.classList.toggle('active', btn.getAttribute('data-reproceso') === currentReprocesoFilter);
     });
+}
+
+function buildUbiCheckboxes() {
+    els.ubiCheckboxList.innerHTML = '';
+    const sortedUbis = Array.from(availableUbis).filter(Boolean).sort();
+    
+    sortedUbis.forEach(ubi => {
+        const item = document.createElement('label');
+        item.className = 'dropdown-item';
+        
+        const isChecked = currentUbiFilters.includes(ubi) ? 'checked' : '';
+        
+        item.innerHTML = `
+            <input type="checkbox" class="ubi-checkbox" value="${ubi}" ${isChecked}>
+            <span>${ubi}</span>
+        `;
+        
+        const cb = item.querySelector('input');
+        cb.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                if (!currentUbiFilters.includes(ubi)) currentUbiFilters.push(ubi);
+            } else {
+                currentUbiFilters = currentUbiFilters.filter(u => u !== ubi);
+            }
+            updateUbiBadge();
+            renderVehicles(currentFilter, els.searchInput.value.trim().toLowerCase());
+        });
+        
+        els.ubiCheckboxList.appendChild(item);
+    });
+}
+
+function updateUbiBadge() {
+    if (currentUbiFilters.length > 0) {
+        els.ubiCountBadge.textContent = currentUbiFilters.length;
+        els.ubiCountBadge.classList.remove('hidden');
+    } else {
+        els.ubiCountBadge.classList.add('hidden');
+    }
 }
 
 function loadData() {
@@ -364,12 +431,17 @@ function processVehicles(data, dictEmsa, dictRevo) {
         const tieneRepuestoPendiente = rpRepuestos !== '' && rpRepuestos.toUpperCase() !== 'OK' && rpRepuestos !== '-';
         const tienePinturaPendiente = rpPintura !== '' && rpPintura.toUpperCase() !== 'OK' && rpPintura !== '-';
 
+        // Extract Ubicacion
+        const ubicacionEsum = getVal('UBICACIÓN ESUM');
+        if (ubicacionEsum) availableUbis.add(ubicacionEsum);
+
         return {
             raw: row, // Keep raw row for modal
             extraInfo: activeDictInfo, // Guardar la data cruzada para el modal
             vin: vin,
             modelo: getVal('MODELO'),
             color: getVal('COLOR'),
+            ubicacionEsum: ubicacionEsum,
             destino: getVal('Destino'),
             dealer: getVal('DEALER'),
             groupDest: groupDest,
@@ -385,6 +457,7 @@ function processVehicles(data, dictEmsa, dictRevo) {
         };
     }).filter(v => v !== null); // Only keep valid rows with VIN
 
+    buildUbiCheckboxes();
     updateKPIs(allVehicles);
     renderVehicles(currentFilter, els.searchInput.value.trim().toLowerCase());
 }
@@ -435,6 +508,12 @@ function renderVehicles(destFilter, searchTerm) {
             matchReproceso = v.tienePinturaPendiente;
         }
 
+        // Ubicacion ESUM sub-filter
+        let matchUbi = true;
+        if (currentUbiFilters.length > 0) {
+            matchUbi = currentUbiFilters.includes(v.ubicacionEsum);
+        }
+
         let matchSearch = true;
         if (searchTerm) {
             const vinLower = v.vin.toLowerCase();
@@ -442,7 +521,7 @@ function renderVehicles(destFilter, searchTerm) {
             matchSearch = vinLower.includes(searchTerm) || vinLast6.includes(searchTerm);
         }
 
-        return matchDest && matchStatus && matchSearch && matchReproceso;
+        return matchDest && matchStatus && matchSearch && matchReproceso && matchUbi;
     });
 
     // Sort by status priority
@@ -467,6 +546,7 @@ function renderVehicles(destFilter, searchTerm) {
                         <th>VIN</th>
                         <th>Modelo</th>
                         <th>Color</th>
+                        <th>Ubicación ESUM</th>
                         <th>Estado</th>
                         <th>Destino</th>
                         <th>Dealer</th>
@@ -504,6 +584,7 @@ function renderVehicles(destFilter, searchTerm) {
                     <td class="vin-cell">${v.vin}</td>
                     <td class="model-cell" title="${v.modelo}">${v.modelo}</td>
                     <td>${v.color || '-'}</td>
+                    <td><b>${v.ubicacionEsum || '-'}</b></td>
                     <td><span class="badge ${badgeClass}">${v.status}</span></td>
                     <td class="dest-cell">${v.destino || '-'}</td>
                     <td>${v.dealer || '-'}</td>

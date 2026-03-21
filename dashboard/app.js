@@ -75,6 +75,25 @@ function setupEventListeners() {
         renderVehicles(currentFilter, term);
     });
 
+    // Permitir pegar listas (múltiples líneas) desde Excel sin que el input text lo corte
+    els.searchInput.addEventListener('paste', (e) => {
+        const pasteData = (e.clipboardData || window.clipboardData).getData('text');
+        if (pasteData && pasteData.includes('\n')) {
+            e.preventDefault();
+            const cleanText = pasteData.replace(/\r?\n|\r/g, ' ');
+            
+            const start = els.searchInput.selectionStart;
+            const end = els.searchInput.selectionEnd;
+            const currentVal = els.searchInput.value;
+            
+            els.searchInput.value = currentVal.substring(0, start) + cleanText + currentVal.substring(end);
+            els.searchInput.selectionStart = els.searchInput.selectionEnd = start + cleanText.length;
+            
+            // Disparar la búsqueda automáticamente
+            els.searchInput.dispatchEvent(new Event('input'));
+        }
+    });
+
     // QR Code Scanner controls
     els.qrBtn.addEventListener('click', startQrScanner);
     els.closeQrBtn.addEventListener('click', stopQrScanner);
@@ -581,9 +600,16 @@ function renderVehicles(destFilter, searchTerm) {
 
         let matchSearch = true;
         if (searchTerm) {
-            const vinLower = v.vin.toLowerCase();
-            const vinLast6 = vinLower.slice(-6);
-            matchSearch = vinLower.includes(searchTerm) || vinLast6.includes(searchTerm);
+            // Dividir por espacios, comas o saltos de línea para búsqueda múltiple
+            const terms = searchTerm.split(/[\s,;\n\t]+/).filter(t => t.length > 0);
+            
+            if (terms.length > 0) {
+                const vinLower = v.vin.toLowerCase();
+                const vinLast6 = vinLower.slice(-6);
+                
+                // Mostrar si el vehículo coincide con CUALQUIERA de los términos buscados
+                matchSearch = terms.some(t => vinLower.includes(t) || vinLast6.includes(t));
+            }
         }
 
         return matchDest && matchStatus && matchSearch && matchReproceso && matchUbi;
